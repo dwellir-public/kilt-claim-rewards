@@ -1,7 +1,9 @@
 import * as Kilt from '@kiltprotocol/sdk-js'
 import { Keyring } from '@polkadot/api'
+import { load } from 'js-yaml'
+import { readFileSync } from 'fs'
 
-export async function getUnclaimed(api, address) {
+async function getUnclaimed(api, address) {
     console.log('Checking rewards...')
     const rewards = await api.call.staking.getUnclaimedStakingRewards(address)
     const decimals = rewards.registry.chainDecimals[0]
@@ -9,7 +11,7 @@ export async function getUnclaimed(api, address) {
     return kilts
 }
 
-export async function claimRewards(api, mnemonic) {
+async function claimRewards(api, mnemonic) {
     console.log('Claiming rewards...')
     const tx = api.tx.utility.batch([
         // convert collator participation points into rewards
@@ -21,58 +23,63 @@ export async function claimRewards(api, mnemonic) {
     const keyring = new Keyring({ type: 'sr25519' });
     const submitterAccount = keyring.addFromUri(mnemonic);
 
-    const onSuccess = (address, txHash, resolve) => {
-        console.log(`Claimed collator staking rewards for ${address} with tx hash ${txHash}`)
-        resolve(txHash)
-    }
+    await tx.signAndSend(submitterAccount, ({ status, dispatchError }) => {
+        if (status.isFinalized && !dispatchError) {
+            address = submitterAccount.address
+            txHash = status.asFinalized.toString()
+            console.log(`Claimed collator staking rewards for ${address} with tx hash ${txHash}`)
+        }
+        if (dispatchError) {
+            if (dispatchError.isModule) {
+                // for module errors, we have the section indexed, lookup
+                const decoded = api.registry.findMetaError(dispatchError.asModule)
+                const { docs, name, section } = decoded
 
-    const onError = (error, reject) => {
-        console.error(`Failed to claim collator staking rewards due to ${error}`)
-        reject(error)
-    }
-
-    const txPromise = new Promise((resolve, reject) => {
-        tx.signAndSend(submitterAccount, ({ status, dispatchError }) => {
-            if (status.isFinalized && !dispatchError) {
-                onSuccess(
-                    submitterAccount.address,
-                    status.asFinalized.toString(),
-                    resolve
-                )
+                const error = new Error(`${section}.${name}: ${docs.join(' ')}`)
+                throw error
+            } else {
+                // Other, CannotLookup, BadOrigin, no extra info
+                const error = new Error(dispatchError.toString())
+                throw error
             }
-            if (dispatchError) {
-                if (dispatchError.isModule) {
-                    // for module errors, we have the section indexed, lookup
-                    const decoded = api.registry.findMetaError(dispatchError.asModule)
-                    const { docs, name, section } = decoded
-
-                    const error = new Error(`${section}.${name}: ${docs.join(' ')}`)
-                    onError(error, reject)
-                } else {
-                    // Other, CannotLookup, BadOrigin, no extra info
-                    const error = new Error(dispatchError.toString())
-                    onError(error, reject)
-                }
-            }
-        })
+        }
     })
-    return txPromise
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function readConfig() {
+    let yamlFile = readFileSync("test.yml", "utf8");
+    let loadedYaml = load(yamlFile);
+
+    console.log(loadedYaml);
+    console.log(loadedYaml.apa);
 }
 
 async function main() {
     const url = 'wss://kilt-rpc.dwellir.com'
-    await Kilt.connect(url)
-    const api = Kilt.ConfigService.get('api')
+    try {
+        console.log("Connecting to " + url)
+        Kilt.connect(url)
+        await sleep(5000)
+        const api = Kilt.ConfigService.get('api')
+    
+        const rewards = await getUnclaimed(api, '4phJhaKeWdThVBGcBY2GR8fbLbd6scz4J48oELePS6bBY4rT')
+        console.log("Unclaimed rewards: " + rewards)
 
-    const rewards = await getUnclaimed(api, '4phJhaKeWdThVBGcBY2GR8fbLbd6scz4J48oELePS6bBY4rT')
-    console.log(rewards)
-    if (rewards > 30) {
-        try {
+        if (rewards > 30) {
             await claimRewards(api, 'entire material egg meadow latin bargain dutch coral blood melt acoustic thought')
-        } catch(e) { console.log("JOCKE CATCHED") }
+        }
+    } catch(error) {
+        console.log("Disconnecting " + url)
+        await Kilt.disconnect()
+        process.exit(1)
     }
-    console.log("disconnecting!!!!!!!!!!!!!!!!")
+    console.log("Disconnecting " + url)
     await Kilt.disconnect()
 }
 
-main()
+//main()
+readConfig()
