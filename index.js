@@ -47,39 +47,47 @@ async function claimRewards(api, mnemonic) {
 }
 
 function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-function readConfig() {
-    let yamlFile = readFileSync("test.yml", "utf8");
-    let loadedYaml = load(yamlFile);
-
-    console.log(loadedYaml);
-    console.log(loadedYaml.apa);
+function readConfig(path) {
+    try {
+        const yamlFile = readFileSync(path, "utf8")
+        const loadedYaml = load(yamlFile)
+        return loadedYaml
+    } catch(error) {
+        console.log(error.message)
+        process.exit(1)
+    }
 }
 
 async function main() {
-    const url = 'wss://kilt-rpc.dwellir.com'
+    if (process.argv.length !== 3) {
+        console.error('Expected one argument: Path to a yaml config file.');
+        process.exit(1);
+    }
+    const config = readConfig(process.argv[2])
     try {
-        console.log("Connecting to " + url)
-        Kilt.connect(url)
+        console.log("Connecting to " + config.url)
+        Kilt.connect(config.url)
         await sleep(5000)
         const api = Kilt.ConfigService.get('api')
     
-        const rewards = await getUnclaimed(api, '4phJhaKeWdThVBGcBY2GR8fbLbd6scz4J48oELePS6bBY4rT')
+        const rewards = await getUnclaimed(api, config.address)
         console.log("Unclaimed rewards: " + rewards)
 
-        if (rewards > 30) {
-            await claimRewards(api, 'entire material egg meadow latin bargain dutch coral blood melt acoustic thought')
+        if (rewards > config.rewardsLimit) {
+            await claimRewards(api, config.mnemonic)
+        } else {
+            console.log(`Unclaimed rewards (${rewards}) is less than rewardsLimit (${config.rewardsLimit}). Not claiming.`)
         }
     } catch(error) {
-        console.log("Disconnecting " + url)
+        console.log("Disconnecting " + config.url)
         await Kilt.disconnect()
         process.exit(1)
     }
-    console.log("Disconnecting " + url)
+    console.log("Disconnecting " + config.url)
     await Kilt.disconnect()
 }
 
-//main()
-readConfig()
+main()
