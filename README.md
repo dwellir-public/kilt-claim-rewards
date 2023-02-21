@@ -3,7 +3,11 @@ Claim Kilt collator rewards using Kilt SDK and Polkadot api.
 
 This is a small javascript that can claim Kilt collator rewards.
 
-It needs path to a yaml config file as argument. An example file is included in the repo (config.yml):
+It needs path to a yaml config file as argument.
+
+    node index.js /path/to/config.yml
+
+ An example file is included in the repo (config.yml):
 
 **url**: Url to the RPC node endpoint to use for the extrinsics.  
 **rewardsLimit**: Don't pay unnecessary fees claiming small rewards. If the amount of rewards is less than this value, no claim is performed.  
