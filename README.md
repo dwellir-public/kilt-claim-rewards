@@ -3,6 +3,19 @@ Claim Kilt collator rewards using Kilt SDK and Polkadot api.
 
 This is a small javascript that can claim Kilt collator rewards.
 
+## Install
+
+    sudo apt update
+    curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
+    sudo apt -y install nodejs
+    sudo apt install npm
+
+In repository directory, run:
+
+    npm install
+
+## Usage
+
 It needs path to a yaml config file as argument.
 
     node index.js /path/to/config.yml
